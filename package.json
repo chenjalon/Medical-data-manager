@@ -1,0 +1,15 @@
+{
+	"name": "体检数据管理",
+	"main": "index.html",
+	"description": "nw.js建立的体检查询软件",
+	"version": "0.1",
+	"nodejs": true,
+	"node-main": "js/main.js",
+	"window": {
+		"title": "体检数据管理",
+		"icon": "resources/icon.png",
+		"toolbar":false,
+		"width":1100,
+		"height":720
+	}
+}

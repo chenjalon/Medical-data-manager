@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+		<link rel="stylesheet" type="text/css" href="plugin/zui/css/zui.css" />
+		<script src="js/jquery.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/js.js" type="text/javascript" charset="utf-8"></script>
+		<script src="plugin/zui/js/zui.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/layer/layer.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div class="fixtop">
+			<nav class="navbar navbar-default" role="navigation">
+				<div class="container-fluid">
+					<div class="navbar-header">
+						<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse-example">
+				        <span class="sr-only">切换导航</span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				    </button>
+						<a class="navbar-brand" href="index.html">体检数据管理</a>
+					</div>
+					<div class="collapse navbar-collapse navbar-collapse-example">
+						<ul class="nav navbar-nav">
+							<li>
+								<a href="index.html">数据展示</a>
+							</li>
+							<li>
+								<a href="entry.html">录入数据</a>
+							</li>
+							<li class="active">
+								<a href="edit.html">编辑数据</a>
+							</li>
+							<li>
+								<a href="setting.html">指标设置</a>
+							</li>
+							<li>
+								<a href="sort.html">分类设置</a>
+							</li>
+							<li>
+								<a href="io.html">导入导出</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+		</div>
+
+		<div class="main">
+			<div class="text-center">
+				<h3>根据指标编辑数据</h3>
+				<form id="form">
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">分类筛选</span>
+						<select class="form-control" id="sortselect" onchange="refreshfield()">
+						</select>
+						<span class="input-group-addon">指标选择</span>
+						<select class="form-control" id="fieldselect" onchange="refreshlist()">
+						</select>
+					</div>
+				</form>
+				<table class="table table-hover table-bordered">
+					<thead>
+						<tr>
+							<th width="35%">年份</th>
+							<th width="35%">值</th>
+							<th width="30%"></th>
+						</tr>
+					</thead>
+					<tbody id="fieldvaluelist"></tbody>
+				</table>
+				<h3>根据年份编辑数据</h3>
+				<form id="form">
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">年份选择</span>
+						<select class="form-control" id="yearselect" onchange="refreshlist()">
+						</select>
+					</div>
+				</form>
+				<table class="table table-hover table-bordered">
+					<thead>
+						<tr>
+							<th width="35%">指标名称</th>
+							<th width="35%">值</th>
+							<th width="30%"></th>
+						</tr>
+					</thead>
+					<tbody id="yearvaluelist"></tbody>
+				</table>
+			</div>
+		</div>
+
+		<script type="text/javascript">
+			var fieldvalue, yearvalue;
+			var str;
+			var LinvoDB = require("linvodb3");
+			var Fieldlist = new LinvoDB("fieldlist", {});
+			var Indexlist = new LinvoDB("indexlist", {});
+			var Sortlist = new LinvoDB("sortlist", {});
+			var tempfieldname = new Array();
+			var tempfieldsort = new Array();
+
+			var tempsortdname = new Array();
+			var tempsortid = new Array();
+
+			$(document).ready(function() {
+				creatyearselect();
+
+				str = "<option value=\"\">请选择一项指标</option>";
+				Fieldlist.find({}).sort({ now: 1 }).exec(function(err, docs) {
+					for(var i = 0; i < docs.length; i++) {
+						tempfieldname[docs[i]._id] = docs[i].name;
+						tempfieldsort[docs[i]._id] = docs[i].sort;
+						str += "<option value=\"" + docs[i]._id + "\" data-sort=\"" + docs[i].sort + "\">" + docs[i].name + "</option>";
+					}
+					$("#fieldselect").html(str);
+				});
+
+				Sortlist.find({}).sort({ now: 1 }).exec(function(err, docs) {
+
+					for(var i = 0; i < docs.length; i++) {
+						tempsortdname[docs[i]._id] = docs[i].name;
+						tempsortid.push(docs[i]._id);
+					}
+
+					creatsortselect();
+				});
+			});
+
+			function creatyearselect() {
+				var date = new Date();
+				var thisyear = date.getFullYear();
+				str = "<option value=\"\">请选择一个年份</option>";
+				for(i = thisyear; i >= 2000; i--) {
+					str += "<option value=\"" + i + "\">" + i + " 年</option>";
+				}
+				$("#yearselect").html(str);
+			}
+
+			function refreshlist() {
+				var tempfield_id = new Array();
+				var tempyear = new Array();
+				var tempvalue = new Array();
+				var tempid = new Array();
+
+				fieldvalue = $("#fieldselect").val();
+				yearvalue = $("#yearselect").val();
+				if(fieldvalue == "" && yearvalue == "")
+					return;
+
+				if(fieldvalue != "") {
+					Indexlist.find({ field_id: fieldvalue }, function(err, doc) {}).sort({ year: -1 }).exec(function(err, docs) {
+						var fieldvalueliststr = "";
+						for(var i = 0; i < docs.length; i++) {
+							fieldvalueliststr += "<tr><td>" + docs[i].year + "</td><td>" + docs[i].value + "</td><td><a href=\"javascript:;\" onclick=\"modifydata('" + docs[i]._id + "')\"><i class=\"icon icon-edit\"></i> 修改</a>&nbsp;&nbsp;<a href=\"javascript:;\" onclick=\"deletedata('" + docs[i]._id + "')\"><i class=\"icon icon-remove-sign\"></i> 删除</a></td></tr>";
+						}
+						$("#fieldvaluelist").html(fieldvalueliststr);
+					});
+				}
+
+				if(yearvalue != "") {
+					Indexlist.find({ year: yearvalue }, function(err, doc) {}).sort({ _id: -1 }).exec(function(err, docs) {
+						var yearvalueliststr = "";
+						for(var i = 0; i < docs.length; i++) {
+							tempfield_id[i] = docs[i].field_id;
+							tempyear[i] = docs[i].year;
+							tempvalue[i] = docs[i].value;
+							tempid[i] = docs[i]._id;
+						}
+						
+						var yearvalueliststrarr = new Array();
+						for(var i = 0; i < tempfield_id.length; i++) {
+							yearvalueliststrarr[i] = "<tr data-sort=\"" + tempfieldsort[tempfield_id[i]] + "\"><td>" + tempfieldname[tempfield_id[i]] + "</td><td>" + tempvalue[i] + "</td><td><a href=\"javascript:;\" onclick=\"modifydata('" + tempid[i] + "')\"><i class=\"icon icon-edit\"></i> 修改</a>&nbsp;&nbsp;<a href=\"javascript:;\" onclick=\"deletedata('" + tempid[i] + "')\"><i class=\"icon icon-remove-sign\"></i> 删除</a></td></tr>";
+						}
+						yearvalueliststrarr.sort();
+						for(var i = 0; i < yearvalueliststrarr.length; i++) {
+							yearvalueliststr += yearvalueliststrarr[i];
+						}
+						
+						$("#yearvaluelist").html(yearvalueliststr);
+						addsorttitle();
+					});
+				}
+			}
+
+			function modifydata(id) {
+				layer.prompt({ shadeClose: true }, function(value, index, elem) {
+					Indexlist.findOne({ _id: id }, function(err, doc) {
+						doc.value = value;
+						if(doc.value != "") {
+							doc.save(function(err) {
+								layer.close(index);
+								layer.msg("修改成功");
+								refreshlist();
+							});
+						} else {
+							layer.msg("无效的值");
+						}
+					});
+				});
+			}
+
+			function deletedata(id) {
+				Indexlist.remove({ _id: id }, {}, function(err, numRemoved) {
+					layer.msg("删除成功");
+					refreshlist();
+				});
+			}
+
+			function creatsortselect() {
+				str = "<option value=\"\">不进行筛选</option><option value=\"-1\">未分类指标</option>";
+				for(var i = 0; i < tempsortid.length; i++) {
+					if(tempsortid[i] != "-1") {
+						str += "<option value=\"" + tempsortid[i] + "\">" + tempsortdname[tempsortid[i]] + "</option>";
+					} else {
+						str += "<option value=\"-1\">未分类</option>";
+					}
+				}
+				$("#sortselect").html(str);
+			}
+
+			function refreshfield() {
+				var tempsortselect = $("#sortselect").val();
+				$("#fieldselect option").hide();
+				$("#fieldselect [value='']").prop("selected", "selected");
+				if(tempsortselect != "") {
+					$("#fieldselect [data-sort=" + tempsortselect + "]").show();
+				} else {
+					$("#fieldselect option").show();
+				}
+			}
+			
+			function addsorttitle() {
+				for(var i = 0; i < tempsortid.length; i++) {
+					if(tempsortid[i] != "-1") {
+						$("#yearvaluelist [data-sort=" + tempsortid[i] + "]:eq(0)").before("<tr><td class=\"sorttitle\" colspan=\"3\">" + tempsortdname[tempsortid[i]] + "</td></tr>");
+					}
+				}
+			}
+		</script>
+	</body>
+
+</html>

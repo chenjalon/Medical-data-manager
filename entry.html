@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+		<link rel="stylesheet" type="text/css" href="plugin/zui/css/zui.css" />
+		<script src="js/jquery.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/js.js" type="text/javascript" charset="utf-8"></script>
+		<script src="plugin/zui/js/zui.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/layer/layer.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div class="fixtop">
+			<nav class="navbar navbar-default" role="navigation">
+				<div class="container-fluid">
+					<div class="navbar-header">
+						<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse-example">
+				        <span class="sr-only">切换导航</span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				    </button>
+						<a class="navbar-brand" href="index.html">体检数据管理</a>
+					</div>
+					<div class="collapse navbar-collapse navbar-collapse-example">
+						<ul class="nav navbar-nav">
+							<li>
+								<a href="index.html">数据展示</a>
+							</li>
+							<li class="active">
+								<a href="entry.html">录入数据</a>
+							</li>
+							<li>
+								<a href="edit.html">编辑数据</a>
+							</li>
+							<li>
+								<a href="setting.html">指标设置</a>
+							</li>
+							<li>
+								<a href="sort.html">分类设置</a>
+							</li>
+							<li>
+								<a href="io.html">导入导出</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+		</div>
+
+		<div class="main">
+			<div class="text-center">
+				<h3>录入指标数据</h3>
+				<form id="form">
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">年份选择</span>
+						<select class="form-control" id="yearselect">
+						</select>
+					</div>
+					<div id="inputgrouplist"></div>
+					<button class="btn btn-block btn-primary" type="button" onclick="addallfield()">确认添加</button>
+				</form>
+			</div>
+		</div>
+
+		<script type="text/javascript">
+			var year;
+			var str;
+			var tempvalue;
+			var LinvoDB = require("linvodb3");
+			var Fieldlist = new LinvoDB("fieldlist", {});
+			var Indexlist = new LinvoDB("indexlist", {});
+			var Sortlist = new LinvoDB("sortlist", {});
+			var Fieldarray = new Array();
+			var tempsortdname = new Array();
+			var tempsortid = new Array();
+
+			$(document).ready(function() {
+				creatyearselect();
+				str = "";
+
+				Sortlist.find({}).sort({ now: 1 }).exec(function(err, docs) {
+
+					for(var i = 0; i < docs.length; i++) {
+						tempsortdname[docs[i]._id] = docs[i].name;
+						tempsortid.push(docs[i]._id);
+					}
+
+					Fieldlist.find({}).sort({ sort: 1, now: 1 }).exec(function(err, docs) {
+						for(var i = 0; i < docs.length; i++) {
+
+							Fieldarray[i] = docs[i]._id;
+							
+							str += "<div class=\"input-group input-group-margin\" data-sort=\"" + docs[i].sort + "\"><span class=\"input-group-addon\">" + docs[i].name + "</span><input type=\"text\" class=\"form-control\" id=\"" + docs[i]._id + "\">";
+
+							if(docs[i].unit != "")
+								str += "<span class=\"input-group-addon\">" + docs[i].unit + "</span></div>";
+							else
+								str += "</div>";
+						}
+						$("#inputgrouplist").html(str);
+						addsorttitle();
+					});
+				});
+			});
+
+			document.onkeydown = function() {
+				if(event.keyCode == 13)
+					addallfield();
+			}
+
+			function creatyearselect() {
+				var date = new Date();
+				var thisyear = date.getFullYear();
+				str = "<option value=\"\">请选择一个年份</option>";
+				for(i = thisyear; i >= 2000; i--) {
+					str += "<option value=\"" + i + "\">" + i + " 年</option>";
+				}
+				$("#yearselect").html(str);
+			}
+
+			function addallfield() {
+				year = $("#yearselect").val();
+
+				if(isNaN(year) || year == "" || year < 1970) {
+					layer.msg("请选择一个年份");
+					return;
+				}
+
+				for(var i = 0; i < Fieldarray.length; i++) {
+					tempvalue = $("#" + Fieldarray[i]).val();
+					if(tempvalue != "") {
+						Indexlist.remove({ field_id: Fieldarray[i], year: year }, function(err, numRemoved) {});
+						Indexlist.save({ field_id: Fieldarray[i], year: year, value: tempvalue, now: new Date().getTime() }, function(err, docs) {});
+					}
+				}
+
+				layer.msg("录入成功");
+				document.getElementById("form").reset();
+				$("#yearselect").focus();
+			}
+			
+			function addsorttitle() {
+				for(var i = 0; i < tempsortid.length; i++) {
+					if(tempsortid[i] != "-1") {
+						$("[data-sort=" + tempsortid[i] + "]:eq(0)").before("<div class=\"entrytitle\">"+tempsortdname[tempsortid[i]]+"：</div>");
+					}
+				}
+			}
+		</script>
+	</body>
+
+</html>

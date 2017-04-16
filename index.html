@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+		<link rel="stylesheet" type="text/css" href="plugin/zui/css/zui.css" />
+		<script src="js/jquery.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/js.js" type="text/javascript" charset="utf-8"></script>
+		<script src="plugin/zui/js/zui.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/layer/layer.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/echarts.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div class="fixtop">
+			<nav class="navbar navbar-default" role="navigation">
+				<div class="container-fluid">
+					<div class="navbar-header">
+						<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse-example">
+				        <span class="sr-only">切换导航</span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				    </button>
+						<a class="navbar-brand" href="index.html">体检数据管理</a>
+					</div>
+					<div class="collapse navbar-collapse navbar-collapse-example">
+						<ul class="nav navbar-nav">
+							<li class="active">
+								<a href="index.html">数据展示</a>
+							</li>
+							<li>
+								<a href="entry.html">录入数据</a>
+							</li>
+							<li>
+								<a href="edit.html">编辑数据</a>
+							</li>
+							<li>
+								<a href="setting.html">指标设置</a>
+							</li>
+							<li>
+								<a href="sort.html">分类设置</a>
+							</li>
+							<li>
+								<a href="io.html">导入导出</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+		</div>
+		<div class="index-main">
+			<div class="top">
+				<h4>时间区间</h4>
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">起始年份</span>
+					<select class="form-control" id="yearstartselect" onchange="changeyearselect()">
+					</select>
+				</div>
+
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">截至年份</span>
+					<select class="form-control" id="yearendselect" onchange="changeyearselect()">
+						<option selected="selected"></option>
+					</select>
+				</div>
+				<h4>显示指标</h4>
+				<div class="checkboxlist">
+					<div id="checkboxlist"></div>
+				</div>
+				<div class="btnlist">
+					<button class="btn" type="button" onclick="selectall()">全选</button>
+					<button class="btn" type="button" onclick="unselectall()">全不选</button>
+					<button class="btn" type="button" onclick="window.print()">打印</button>
+				</div>
+			</div>
+
+			<div class="table-wrap">
+				<table class="table table-hover table-bordered">
+					<thead>
+						<tr id="theadtr"></tr>
+					</thead>
+					<tbody id="tbody"></tbody>
+				</table>
+			</div>
+		</div>
+		<script>
+			var str, checkboxshowstr;
+			var tempstartyear, tempendyear;
+			var countyeardif;
+			var yeardif = 3;
+			var tempchartmax, tempchartmin, tempchartdif;
+			var sorttemplist = true;
+			var LinvoDB = require("linvodb3");
+			var Fieldlist = new LinvoDB("fieldlist", {});
+			var Indexlist = new LinvoDB("indexlist", {});
+			var Sortlist = new LinvoDB("sortlist", {});
+			var tableinsertarry = new Array();
+			var tempwindowdom;
+			var tempyeararry = new Array();
+			var tempfieldname = new Array();
+			var tempfieldunit = new Array();
+			var tempfieldmax = new Array();
+			var tempfieldmin = new Array();
+			var tempfieldvalue = new Array();
+			var newtempfieldvalue = new Array;
+			var tempsearcharray = new Array;
+			var tempsortdname = new Array();
+			var tempsortid = new Array();
+			var Chart;
+
+			var chartwindowcontent = `
+			<div class="chart-wrap">
+				<div class="chart-tool-wrap">
+					<button class="btn" type="button" onclick="printchart()">打印</button>
+				</div>
+				<div id="chart"></div>
+			</div>`;
+
+			$(document).ready(function() {
+				creatyearselect();
+				tableshow();
+				fieldcheckboxshow();
+			});
+
+			function tableshow() {
+				$("#theadtr").html("");
+				$("#tbody").html("");
+
+				countyeardif = tempendyear - tempstartyear;
+				str = "<th>指标名称</th>";
+				tempyeararry.splice(0, tempyeararry.length);
+				for(var i = 0; i <= countyeardif; i++) {
+					tempyeararry[i] = tempstartyear + i;
+					str += "<th>" + (tempstartyear + i) + " 年</th>";
+				}
+				str += "<th>参考值</th><th>单位</th><th></th>";
+				$("#theadtr").html(str);
+
+				Sortlist.find({}).sort({ now: 1 }).exec(function(err, docs) {
+					if(sorttemplist) {
+						for(var i = 0; i < docs.length; i++) {
+							tempsortdname[docs[i]._id] = docs[i].name;
+							tempsortid.push(docs[i]._id);
+						}
+						sorttemplist = false;
+					}
+
+					Fieldlist.find({}).sort({ sort: 1, now: 1 }).exec(function(err, docs) {
+						for(var i = 0; i < docs.length; i++) {
+							tempfieldname[docs[i]._id] = docs[i].name;
+							tempfieldunit[docs[i]._id] = docs[i].unit;
+							tempfieldmax[docs[i]._id] = docs[i].max;
+							tempfieldmin[docs[i]._id] = docs[i].min;
+							str = "<tr id=\"field-" + docs[i]._id + "\" data-sort=\"" + docs[i].sort + "\"><td>" + docs[i].name + "</td>";
+							for(var m = 0; m <= countyeardif; m++)
+								str += "<td id=\"" + (tempstartyear + m) + "-" + docs[i]._id + "\"></td>";
+
+							if(docs[i].max == "")
+								str += "<td>" + docs[i].min + "</td><td>" + docs[i].unit + "</td><td>无图表</td>";
+							else
+								str += "<td>" + docs[i].min + "~" + docs[i].max + "</td><td>" + docs[i].unit + "</td><td><a href=\"javascript:;\" onclick=\"showchart('" + docs[i]._id + "')\"><i class=\"icon icon-area-chart\"></i></i> 显示图表</a></td>";
+							str += "</tr>";
+							$("#tbody").append(str);
+						}
+
+						Indexlist.find({ $and: [{ year: { $gte: String(tempstartyear) } }, { year: { $lte: String(tempendyear) } }] }, function(err, docs) {
+							for(var i = 0; i < docs.length; i++) {
+								$("#" + docs[i].year + "-" + docs[i].field_id).html(docs[i].value);
+							}
+
+							addsorttitle();
+						});
+					});
+				});
+
+			}
+
+			function fieldcheckboxshow() {
+				checkboxshowstr = "";
+				Fieldlist.find({}).sort({
+					now: 1
+				}).exec(function(err, docs) {
+					for(var i = 0; i < docs.length; i++) {
+						checkboxshowstr += "<div class=\"checkbox\"><label><input type=\"checkbox\" checked=\"checked\" onchange=\"checkboxcheck()\" id=\"checkbox-" + docs[i]._id + "\">" + docs[i].name + "</label></div>";
+					}
+					$("#checkboxlist").html(checkboxshowstr);
+				});
+			}
+
+			function creatyearselect() {
+				var date = new Date();
+				var thisyear = date.getFullYear();
+
+				tempendyear = thisyear;
+				tempstartyear = thisyear - yeardif;
+
+				for(i = thisyear; i >= 2000; i--) {
+					str += "<option value=\"" + i + "\">" + i + " 年</option>";
+				}
+				$("#yearstartselect").html(str);
+				$("#yearendselect").html(str);
+
+				$("#yearstartselect option:eq(" + yeardif + ")").attr("selected", "selected");
+			}
+
+			function changeyearselect() {
+				var startyear = $("#yearstartselect").val();
+				var endyear = $("#yearendselect").val();
+				if(startyear > endyear) {
+					layer.msg("年份区间无效");
+					$("#theadtr").html("");
+					$("#tbody").html("");
+					return;
+				}
+				tempstartyear = Number(startyear);
+				tempendyear = Number(endyear);
+				tableshow();
+			}
+
+			function checkboxcheck() {
+				var tempcheckboxid;
+				$("[type|='checkbox']").each(function() {
+					tempcheckboxid = $(this).attr("id").substring(9);
+					if(!$(this).is(':checked')) {
+						$("#field-" + tempcheckboxid).hide();
+					} else {
+						$("#field-" + tempcheckboxid).show();
+					}
+				});
+			}
+
+			function selectall() {
+				$("[type|='checkbox']").each(function() {
+					$(this).prop("checked", "checked");
+				});
+				checkboxcheck();
+			}
+
+			function unselectall() {
+				$("[type|='checkbox']").each(function() {
+					$(this).removeAttr("checked");
+				});
+				checkboxcheck();
+			}
+
+			function showchart(id) {
+				layer.open({
+					type: 1,
+					title: ' ',
+					area: ['720px', '450px'],
+					maxmin: true,
+					shadeClose: true,
+					content: chartwindowcontent,
+					success: function(layero, index) {
+						tempwindowdom = layero.selector;
+						charjs(id);
+						$("#chart").resize(function() {
+							Chart.resize();
+						});
+					}
+				});
+			}
+
+			function charjs(id) {
+				Indexlist.find({ $and: [{ field_id: id }, { year: { $gte: String(tempstartyear) } }, { year: { $lte: String(tempendyear) } }] }, {}).sort({ year: 1 }).exec(function(err, docs) {
+					tempfieldvalue.splice(0, tempfieldvalue.length);
+					for(var i = 0; i < docs.length; i++) {
+						if(!isNaN(docs[i].value))
+							tempfieldvalue[docs[i].year] = docs[i].value;
+					}
+
+					newtempfieldvalue.splice(0, newtempfieldvalue.length);
+					for(var i = tempstartyear, m = 0; i <= tempendyear; i++, m++) {
+						if(typeof(tempfieldvalue[i]) != "undefined")
+							newtempfieldvalue[m] = tempfieldvalue[i];
+						else
+							newtempfieldvalue[m] = "";
+					}
+
+					Chart = echarts.init(document.getElementById('chart'));
+
+					var newtempfieldunit = '';
+					if(tempfieldunit[id] != '')
+						newtempfieldunit = '单位(' + tempfieldunit[id] + ')';
+
+					tempsearcharray.splice(0, tempsearcharray.length);
+					tempsearcharray.push(tempfieldmax[id]);
+					tempsearcharray.push(tempfieldmin[id]);
+					for(var i = 0; i < newtempfieldvalue.length; i++) {
+						if(newtempfieldvalue[i] != '')
+							tempsearcharray.push(newtempfieldvalue[i]);
+					}
+					tempchartmax = Math.max.apply(null, tempsearcharray);
+					tempchartmin = Math.min.apply(null, tempsearcharray);
+					tempchartdif = 0;
+					tempchartdif = floatsub(tempchartmax, tempchartmin);
+					tempchartmax = floatadd(tempchartmax, floatmul(tempchartdif, 0.2));
+					tempchartmin = floatsub(tempchartmin, floatmul(tempchartdif, 0.2));
+
+					if(tempchartmin < 0)
+						tempchartmin = 0;
+
+					option = {
+						title: {
+							text: tempfieldname[id] + '数值变化图',
+							top: "10px",
+							left: 'center'
+						},
+						tooltip: {
+							trigger: 'axis',
+							formatter: '{c} ' + tempfieldunit[id]
+						},
+						xAxis: {
+							name: '年份',
+							type: 'category',
+							boundaryGap: false,
+							data: tempyeararry
+						},
+						yAxis: {
+							name: newtempfieldunit,
+							type: 'value',
+							scale: true,
+							max: tempchartmax,
+							min: tempchartmin
+						},
+						color: ["#3280FC", "#145CCD"],
+						series: {
+							type: 'line',
+							data: newtempfieldvalue,
+							markArea: {
+								silent: true,
+								label: {
+									normal: {
+										position: 'right'
+									}
+								},
+								data: [
+									[{
+										name: '参考区间',
+										yAxis: tempfieldmin[id]
+									}, {
+										yAxis: tempfieldmax[id]
+									}]
+								]
+							}
+						}
+					};
+
+					if(tempfieldmin[id] == "" || tempfieldmax[id] == "")
+						option.series.markArea = {};
+
+					Chart.setOption(option);
+				});
+
+			}
+
+			function printchart() {
+				$(tempwindowdom).css("width", "720px");
+				layer.load(3, {
+					time: 1000
+				});
+				setTimeout(function() {
+					$(tempwindowdom).css("top", "0");
+					$(tempwindowdom).css("left", "0");
+					window.print();
+				}, 1000);
+			}
+
+			function addsorttitle() {
+				var colspan = 5 + countyeardif;
+				for(var i = 0; i < tempsortid.length; i++) {
+					if(tempsortid[i] != "-1") {
+						$("#tbody [data-sort=" + tempsortid[i] + "]:eq(0)").before("<tr class=\"tempsorttitle\"><td class=\"sorttitle\" colspan=\"" + colspan + "\">" + tempsortdname[tempsortid[i]] + "</td></tr>");
+					}
+				}
+			}
+		</script>
+	</body>
+
+</html>

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+		<link rel="stylesheet" type="text/css" href="plugin/zui/css/zui.css" />
+		<script src="js/jquery.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/js.js" type="text/javascript" charset="utf-8"></script>
+		<script src="plugin/zui/js/zui.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/layer/layer.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div class="fixtop">
+			<nav class="navbar navbar-default" role="navigation">
+				<div class="container-fluid">
+					<div class="navbar-header">
+						<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse-example">
+				        <span class="sr-only">切换导航</span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				    </button>
+						<a class="navbar-brand" href="index.html">体检数据管理</a>
+					</div>
+					<div class="collapse navbar-collapse navbar-collapse-example">
+						<ul class="nav navbar-nav">
+							<li>
+								<a href="index.html">数据展示</a>
+							</li>
+							<li>
+								<a href="entry.html">录入数据</a>
+							</li>
+							<li>
+								<a href="edit.html">编辑数据</a>
+							</li>
+							<li class="active">
+								<a href="setting.html">指标设置</a>
+							</li>
+							<li>
+								<a href="sort.html">分类设置</a>
+							</li>
+							<li>
+								<a href="io.html">导入导出</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+		</div>
+
+		<div class="main">
+			<div class="text-center">
+				<h3>添加新指标</h3>
+				<form id="form">
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">指标名称</span>
+						<input type="text" class="form-control" id="name">
+					</div>
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">单位</span>
+						<input type="text" class="form-control" id="unit">
+					</div>
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">参考值</span>
+						<input type="text" class="form-control" id="ref">
+						<span class="input-group-addon span-t">数值范围用空格分离</span>
+					</div>
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">分类</span>
+						<select class="form-control" id="sortselect">
+						</select>
+					</div>
+					<button class="btn btn-block btn-primary" type="button" onclick="addfield()">确认添加</button>
+				</form>
+			</div>
+
+			<div class="text-center" id="showfield">
+				<h3>指标编辑</h3>
+				<table class="table table-hover table-bordered">
+					<thead>
+						<tr>
+							<th width="40%">指标名称</th>
+							<th width="15%">单位</th>
+							<th width="15%">参考值</th>
+							<th width="30%"></th>
+						</tr>
+					</thead>
+					<tbody id="fieldlist"></tbody>
+				</table>
+			</div>
+		</div>
+
+		<script type="text/javascript">
+			var name, unit, ref, min, max, sort;
+			var str, sortselectstr;
+			var pop_up;
+			var LinvoDB = require("linvodb3");
+			var Fieldlist = new LinvoDB("fieldlist", {});
+			var Indexlist = new LinvoDB("indexlist", {});
+			var Sortlist = new LinvoDB("sortlist", {});
+			var tempsortdname = new Array();
+			var tempsortid = ["-1"];
+
+			var modifywindowcontent = `
+			<div class="windowcontent">
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">指标名称</span>
+					<input type="text" class="form-control" id="mname">
+				</div>
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">单位</span>
+					<input type="text" class="form-control" id="munit">
+				</div>
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">参考值</span>
+					<input type="text" class="form-control" id="mref">
+					<span class="input-group-addon span-t">数值范围用空格分离</span>
+				</div>
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">分类</span>
+					<select class="form-control" id="msortselect">
+					</select>
+				</div>
+				<button id="modifybutton" class="btn btn-block btn-primary" type="button">提交修改</button>
+			</div>
+			`;
+
+			var livefieldlist = Fieldlist.find({}).sort({ sort: 1, now: 1 }).live();
+
+			Fieldlist.on("liveQueryUpdate", function() {
+				if(livefieldlist.res.length != 0) {
+					str = "";
+					for(var i = 0; i < livefieldlist.res.length; i++) {
+						str += "<tr data-sort=\"" + livefieldlist.res[i].sort + "\"><td>" + livefieldlist.res[i].name + "</td><td>" + livefieldlist.res[i].unit + "</td>";
+						if(livefieldlist.res[i].max == "")
+							str += "<td>" + livefieldlist.res[i].min + "</td>";
+						else
+							str += "<td>" + livefieldlist.res[i].min + "~" + livefieldlist.res[i].max + "</td>";
+
+						str += "<td><a href=\"javascript:;\" onclick=\"modifyfieldwindow('" + livefieldlist.res[i]._id + "')\"><i class=\"icon icon-edit\"></i> 修改</a>&nbsp;&nbsp;<a href=\"javascript:;\" onclick=\"deletefield('" + livefieldlist.res[i]._id + "')\"><i class=\"icon icon-remove-sign\"></i> 删除</a></td></tr>";
+
+					}
+					$("#fieldlist").html(str);
+					addsorttitle();
+				} else
+					$("#fieldlist").html("");
+			});
+
+			$(document).ready(function() {
+				sortselectstr = "<option value=\"-1\">无分类</option>";
+				Sortlist.find({}).sort({ now: 1 }).exec(function(err, docs) {
+					for(var i = 0; i < docs.length; i++) {
+						tempsortid.push(docs[i]._id);
+						tempsortdname[docs[i]._id] = docs[i].name;
+						sortselectstr += "<option value=\"" + docs[i]._id + "\">" + docs[i].name + "</option>";
+					}
+					$("#sortselect").html(sortselectstr);
+				});
+			});
+
+			document.onkeydown = function() {
+				if(event.keyCode == 13)
+					addallfield();
+			}
+
+			function addfield() {
+				name = $("#name").val();
+				unit = $("#unit").val();
+				ref = $("#ref").val();
+				sort = $("#sortselect").val();
+
+				if(name == "") {
+					layer.msg("请输入指标名称");
+					return;
+				}
+
+				var strarray = ref.split(" ");
+
+				if(strarray.length == 2) {
+					if(isNaN(strarray[0]) || isNaN(strarray[1]) || Number(strarray[0]) > Number(strarray[1])) {
+						layer.msg("无效的数值范围");
+						return;
+					}
+					min = strarray[0];
+					max = strarray[1];
+				} else {
+					min = ref;
+					max = "";
+				}
+
+				Fieldlist.findOne({
+					name: name
+				}, function(err, doc) {
+					if(doc)
+						layer.msg("添加失败<br />指标名称已存在");
+					else {
+						Fieldlist.insert({
+							name: name,
+							unit: unit,
+							min: min,
+							max: max,
+							sort: sort,
+							now: new Date().getTime()
+						}, function(err, newFieldlist) {
+							layer.msg("添加成功");
+							document.getElementById("form").reset();
+							$("#name").focus();
+						});
+					}
+				});
+			}
+
+			function deletefield(id) {
+				Fieldlist.remove({
+					_id: id
+				}, {}, function(err, numRemoved) {});
+				Indexlist.remove({
+					field_id: id
+				}, {
+					multi: true
+				}, function(err, numRemoved) {});
+				layer.msg("删除成功");
+			}
+
+			function modifyfieldwindow(id) {
+				pop_up = layer.open({
+					type: 1,
+					title: "信息修改",
+					shadeClose: true,
+					content: modifywindowcontent
+				});
+
+				Fieldlist.findOne({
+					_id: id
+				}, function(err, doc) {
+					$("#mname").val(doc.name);
+					$("#munit").val(doc.unit);
+					if(doc.max == "")
+						$("#mref").val(doc.min);
+					else
+						$("#mref").val(doc.min + " " + doc.max);
+					$("#msortselect [value=" + doc.sort + "]").prop("selected", "selected");
+				});
+
+				$("#msortselect").html(sortselectstr);
+				$("#modifybutton").attr("onclick", "modifyfield(\"" + id + "\")");
+			}
+
+			function modifyfield(id) {
+				name = $("#mname").val();
+				unit = $("#munit").val();
+				ref = $("#mref").val();
+				sort = $("#msortselect").val();
+
+				if(name == "") {
+					layer.msg("请输入指标名称");
+					return;
+				}
+
+				var strarray = ref.split(" ");
+
+				if(strarray.length == 2) {
+					if(isNaN(strarray[0]) || isNaN(strarray[1]) || Number(strarray[0]) > Number(strarray[1])) {
+						layer.msg("无效的数值范围");
+						return;
+					}
+
+					min = strarray[0];
+					max = strarray[1];
+				} else {
+					min = ref;
+					max = "";
+				}
+
+				Fieldlist.findOne({
+					name: name,
+					_id: {
+						$ne: id
+					}
+				}, function(err, doc) {
+					if(doc)
+						layer.msg("添加失败<br />指标名称已存在");
+					else {
+						Fieldlist.findOne({
+							_id: id
+						}, function(err, doc) {
+							doc.name = name;
+							doc.unit = unit;
+							doc.max = max;
+							doc.min = min;
+							doc.sort = sort;
+							doc.save(function(err) {
+								layer.close(pop_up);
+								layer.msg("修改成功");
+							});
+						});
+					}
+				});
+			}
+
+			function addsorttitle() {
+				for(var i = 0; i < tempsortid.length; i++) {
+					if(tempsortid[i] != "-1") {
+						$("[data-sort=" + tempsortid[i] + "]:eq(0)").before("<tr><td class=\"sorttitle\" colspan=\"4\">" + tempsortdname[tempsortid[i]] + "</td></tr>");
+					}
+				}
+			}
+		</script>
+	</body>
+
+</html>

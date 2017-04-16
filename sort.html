@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+		<link rel="stylesheet" type="text/css" href="plugin/zui/css/zui.css" />
+		<script src="js/jquery.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/js.js" type="text/javascript" charset="utf-8"></script>
+		<script src="plugin/zui/js/zui.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/layer/layer.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div class="fixtop">
+			<nav class="navbar navbar-default" role="navigation">
+				<div class="container-fluid">
+					<div class="navbar-header">
+						<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse-example">
+				        <span class="sr-only">切换导航</span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				    </button>
+						<a class="navbar-brand" href="index.html">体检数据管理</a>
+					</div>
+					<div class="collapse navbar-collapse navbar-collapse-example">
+						<ul class="nav navbar-nav">
+							<li>
+								<a href="index.html">数据展示</a>
+							</li>
+							<li>
+								<a href="entry.html">录入数据</a>
+							</li>
+							<li>
+								<a href="edit.html">编辑数据</a>
+							</li>
+							<li>
+								<a href="setting.html">指标设置</a>
+							</li>
+							<li class="active">
+								<a href="sort.html">分类设置</a>
+							</li>
+							<li>
+								<a href="io.html">导入导出</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+		</div>
+
+		<div class="main">
+			<div class="text-center">
+				<h3>添加新分类</h3>
+				<div class="input-group input-group-margin">
+					<span class="input-group-addon">分类名称</span>
+					<input type="text" class="form-control" id="name">
+				</div>
+				<button class="btn btn-block btn-primary" type="button" onclick="addsort()">确认添加</button>
+			</div>
+
+			<div class="text-center" id="showsort">
+				<h3>编辑分类</h3>
+				<table class="table table-hover table-bordered">
+					<thead>
+						<tr>
+							<th width="70%">类别名称</th>
+							<th width="30%"></th>
+						</tr>
+					</thead>
+					<tbody id="sortlist"></tbody>
+				</table>
+			</div>
+		</div>
+
+		<script type="text/javascript">
+			var name;
+			var str;
+			var pop_up;
+			var LinvoDB = require("linvodb3");
+			var Sortlist = new LinvoDB("sortlist", {});
+			var Fieldlist = new LinvoDB("fieldlist", {});
+
+			var modifywindowcontent = `
+				<div class="windowcontent">
+					<div class="input-group input-group-margin">
+						<span class="input-group-addon">分类名称</span>
+						<input type="text" class="form-control" id="mname">
+					</div>
+					<button id="modifybutton" class="btn btn-block btn-primary" type="button">提交修改</button>
+				</div>
+				`;
+
+			var livesortlist = Sortlist.find({}).sort({
+				now: 1
+			}).live();
+
+			Sortlist.on("liveQueryUpdate", function() {
+				if(livesortlist.res.length != 0) {
+					str = "";
+					for(var i = 0; i < livesortlist.res.length; i++)
+						str += "<tr><td>" + livesortlist.res[i].name + "</td><td><a href=\"javascript:;\" onclick=\"modifysortwindow('" + livesortlist.res[i]._id + "')\"><i class=\"icon icon-edit\"></i> 修改</a>&nbsp;&nbsp;<a href=\"javascript:;\" onclick=\"deletesort('" + livesortlist.res[i]._id + "')\"><i class=\"icon icon-remove-sign\"></i> 删除</a></td></tr>";
+					$("#sortlist").html(str);
+				} else
+					$("#sortlist").html("");
+			});
+
+			function addsort() {
+				name = $("#name").val();
+
+				if(name == "") {
+					layer.msg("请输入分类名称");
+					return;
+				}
+
+				Sortlist.findOne({
+					name: name
+				}, function(err, doc) {
+					if(doc)
+						layer.msg("添加失败<br />分类名称已存在");
+					else {
+						Sortlist.insert({
+							name: name,
+							now: new Date().getTime()
+						}, function(err, newFieldlist) {
+							layer.msg("添加成功");
+							$("#name").val("");
+							$("#name").focus();
+						});
+					}
+				});
+			}
+
+			function deletesort(id) {
+				Sortlist.remove({ _id: id }, {}, function(err, numRemoved) {});
+				Fieldlist.update({ sort: id }, { $set: { sort: '-1' } }, { multi: true }, function(err, numReplaced) {});
+				layer.msg("删除成功");
+			}
+
+			function modifysortwindow(id) {
+				pop_up = layer.open({
+					type: 1,
+					title: "信息修改",
+					shadeClose: true,
+					content: modifywindowcontent
+				});
+
+				Sortlist.findOne({
+					_id: id
+				}, function(err, doc) {
+					$("#mname").val(doc.name);
+				});
+
+				$("#modifybutton").attr("onclick", "modifysort(\"" + id + "\")");
+			}
+
+			function modifysort(id) {
+				name = $("#mname").val();
+
+				if(name == "") {
+					layer.msg("请输入分类名称");
+					return;
+				}
+
+				Sortlist.findOne({
+					name: name,
+					_id: {
+						$ne: id
+					}
+				}, function(err, doc) {
+					if(doc)
+						layer.msg("添加失败<br />分类名称已存在");
+					else {
+						Sortlist.findOne({
+							_id: id
+						}, function(err, doc) {
+							doc.name = name;
+							doc.save(function(err) {
+								layer.close(pop_up);
+								layer.msg("修改成功");
+							});
+						});
+					}
+				});
+			}
+		</script>
+	</body>
+
+</html>

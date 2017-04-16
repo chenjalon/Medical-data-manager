@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+		<link rel="stylesheet" type="text/css" href="plugin/zui/css/zui.css" />
+		<script src="js/jquery.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/js.js" type="text/javascript" charset="utf-8"></script>
+		<script src="plugin/zui/js/zui.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/layer/layer.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+
+	<body>
+		<div class="fixtop">
+			<nav class="navbar navbar-default" role="navigation">
+				<div class="container-fluid">
+					<div class="navbar-header">
+						<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse-example">
+				        <span class="sr-only">切换导航</span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				        <span class="icon-bar"></span>
+				    </button>
+						<a class="navbar-brand" href="index.html">体检数据管理</a>
+					</div>
+					<div class="collapse navbar-collapse navbar-collapse-example">
+						<ul class="nav navbar-nav">
+							<li>
+								<a href="index.html">数据展示</a>
+							</li>
+							<li>
+								<a href="entry.html">录入数据</a>
+							</li>
+							<li>
+								<a href="edit.html">编辑数据</a>
+							</li>
+							<li>
+								<a href="setting.html">指标设置</a>
+							</li>
+							<li>
+								<a href="sort.html">分类设置</a>
+							</li>
+							<li class="active">
+								<a href="io.html">导入导出</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</nav>
+		</div>
+
+		<div class="main">
+			<div>
+				<h3>导出 / 备份数据文件</h3>
+				<button class="btn btn-block btn-primary" type="button" onclick="outputfile()">导出 / 备份</button>
+				<h3>导入数据文件 <span class="label label-warning">导入数据时会清除所有原有数据</span></h3>
+
+				<button class="btn btn-block btn-primary" type="button" onclick="inputfile()">导入</button>
+
+			</div>
+
+			<div class="hidden">
+				<input id="inputfile" type="file">
+				<input id="outputfile" type="file" nwsaveas="">
+			</div>
+		</div>
+
+		<script type="text/javascript">
+			var str;
+			var splitstr = "##########$$$$$$$$$$";
+			var outpurfilename = "体检查询器备份文件" + getdate() + ".json";
+			var strarray = new Array();
+			var fs = require("fs");
+			var LinvoDB = require("linvodb3");
+			var Sortlist = new LinvoDB("sortlist", {});
+			var Fieldlist = new LinvoDB("fieldlist", {});
+			var Indexlist = new LinvoDB("indexlist", {});
+
+			$(document).ready(function() {
+				$("#inputfile").change(function(evt) {
+					readfile($(this).val());
+				});
+				$("#outputfile").change(function(evt) {
+					writefile($(this).val());
+				});
+
+				$("#outputfile").attr("nwsaveas", outpurfilename);
+			});
+
+			function inputfile() {
+				$("#inputfile").trigger("click");
+			}
+
+			function outputfile() {
+				$("#outputfile").trigger("click");
+			}
+
+			function readfile(f) {
+				str = "";
+				strarray.splice(0, strarray.length);
+				var sortliststr = "";
+				var fieldliststr = "";
+				var indexlist = "";
+				fs.readFile(f, function(err, data) {
+					str = String(data);
+					strarray = str.split(splitstr);
+					if(strarray.length == 3) {
+						sortliststr = strarray[0];
+						fieldliststr = strarray[1];
+						indexlist = strarray[2];
+						sortliststr = JSON.parse(sortliststr);
+						fieldliststr = JSON.parse(fieldliststr);
+						indexlist = JSON.parse(indexlist);
+						Sortlist.remove({}, { multi: true }, function(err, numRemoved) {
+							Sortlist.save(sortliststr, function(err, docs) {});
+						});
+						Fieldlist.remove({}, { multi: true }, function(err, numRemoved) {
+							Fieldlist.save(fieldliststr, function(err, docs) {});
+						});
+						Indexlist.remove({}, { multi: true }, function(err, numRemoved) {
+							Indexlist.save(indexlist, function(err, docs) {});
+						});
+
+						layer.msg("导入成功");
+						$("#inputfile").val("");
+					} else
+						layer.msg("导入失败");
+				});
+			}
+
+			function writefile(f) {
+				str = "";
+				Sortlist.find({}, function(err, docs) {
+					str = JSON.stringify(docs);
+					str += splitstr;
+					Fieldlist.find({}, function(err, docs) {
+						str += JSON.stringify(docs);
+						str += splitstr;
+						Indexlist.find({}, function(err, docs) {
+							str += JSON.stringify(docs);
+							fs.writeFile(f, str, function(err) {
+								layer.msg("导出成功");
+							});
+						});
+					});
+				});
+			}
+		</script>
+	</body>
+
+</html>
